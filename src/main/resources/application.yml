@@ -1,0 +1,76 @@
+resilience4j:
+  #Configuracion de corto circuito
+  circuitbreaker:
+    configs:
+      #Asignamos nombre defecto
+      defecto:
+        # Tamaño de pantalla deslizante por defecto es 100 request
+        sliding-window.size: 6
+        # Taza de falla, por defecto es 50 %
+        failure-rade-threshould: 50
+        # Tiempo de espera en estado abierto del corto circuito, por defecto es 60 segundos
+        wait-duration-in-open-state: 20s
+        # Numero de llamadas permitidas en estado abierto, por defecto son 10
+        permited-number-of-calls-in-half-open-state: 4
+        # Configuracion de porcentaje de umbral de llamadas lentas por defecto es 100%
+        slow-call-rate-threshold: 50
+        # Configuracion de llamada lenta, tiempo maximo de espera de peticion
+        slow-call-duration-threshold: 2s
+    # Asignacion de configuracion al corto circuito
+    instances:
+      # Nombre del corto circuito
+      productos:
+        base-config: defecto
+  # Configuracion de time out
+  timelimiter:
+    configs:
+      defecto:
+        # Por defecto es 1s
+        timeout-duration: 2s
+    # Asignacion de configuracion time out a la instancia productos
+    instances:
+      productos:
+        base-config: defecto
+
+spring:
+  cloud:
+    gateway:
+      routes:
+      - id: servicio-productos
+        #lb para indicar que accesaremos al microservicio con balanceo de carga
+        uri: lb://servicio-productos
+        predicates:
+          - Path=/api/productos/**
+          # Agrega reglas al microservicio
+          #- Header=token, \d+
+          #- Header= Content- Type, application/json
+          #- Method=GET, POST
+          #- Query=color
+          #- Cookie = color, azul
+        filters:
+          #Filtro especial de fabrica que ya biene integrado en spring cloud gateway como CircuitBreaker
+          - name: CircuitBreaker
+            # Configuracion de argumentos
+            args:
+              name: productos
+              statusCodes: 500
+              # Ruta alternativa para cuando falle el microservicio productos con codigo 500
+              fallbackUri: forward:/api/items/ver/9/cantidad/5
+
+          #segmentos de la ruta de nuestro microservicio
+          - StripPrefix=2
+          # filtro personalizado con gateway factory
+          # EjemploCookie nombre
+          # Orden con ,
+          - EjemploCookie=Hola mi mensaje personalizado, usuario, AndresGuzman
+      - id: servicio-items
+        uri: lb://servicio-items
+        predicates:
+          - Path=/api/items/**
+        filters:
+          - StripPrefix=2
+          # Add filtro de cabezera  nombre  ,  valor
+          - AddRequestHeader=token-request, 123456
+          - AddResponseHeader=token-response, 12345678
+          - SetResponseHeader=Content-Type, text/plain
+          - AddRequestParameter=nombre, andres
